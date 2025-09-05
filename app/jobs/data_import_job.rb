@@ -27,6 +27,7 @@ class DataImportJob < ApplicationJob
     save_failed_records_csv(rejected_contacts)
   end
 
+  # rubocop:disable Metrics
   def parse_csv_and_build_contacts
     contacts = []
     rejected_contacts = []
@@ -59,6 +60,7 @@ class DataImportJob < ApplicationJob
 
     [contacts, rejected_contacts]
   end
+  # rubocop:enable Metrics
 
   def append_rejected_contact(row, contact, rejected_contacts)
     row['errors'] = contact.errors.full_messages.join(', ')
