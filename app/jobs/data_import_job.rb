@@ -30,6 +30,8 @@ class DataImportJob < ApplicationJob
   def parse_csv_and_build_contacts
     contacts = []
     rejected_contacts = []
+    valid_labels = @data_import.account.labels.pluck(:title)
+
     # Ensuring that importing non utf-8 characters will not throw error
     data = @data_import.import_file.download
     utf8_data = data.force_encoding('UTF-8')
@@ -40,8 +42,15 @@ class DataImportJob < ApplicationJob
     csv = CSV.parse(clean_data, headers: true)
 
     csv.each do |row|
-      current_contact = @contact_manager.build_contact(row.to_h.with_indifferent_access)
+      h = row.to_h.with_indifferent_access
+
+      labels =  h.keys.grep(/^label_\d+$/i).filter_map { |k| h.delete(k)&.strip&.downcase }
+                 .uniq & valid_labels
+
+      current_contact = @contact_manager.build_contact(h)
+
       if current_contact.valid?
+        current_contact.instance_variable_set(:@labels_to_add, labels) if labels.any?
         contacts << current_contact
       else
         append_rejected_contact(row, current_contact, rejected_contacts)
@@ -58,7 +67,15 @@ class DataImportJob < ApplicationJob
 
   def import_contacts(contacts)
     # <struct ActiveRecord::Import::Result failed_instances=[], num_inserts=1, ids=[444, 445], results=[]>
-    Contact.import(contacts, synchronize: contacts, on_duplicate_key_ignore: true, track_validation_failures: true, validate: true, batch_size: 1000)
+    result = Contact.import(contacts, synchronize: contacts, on_duplicate_key_ignore: true, track_validation_failures: true, validate: true,
+                                      batch_size: 1000)
+    # NOTE: this is very simple approach and will do N insert query for N contacts, can we simplified
+    contacts.select(&:persisted?).each do |contact|
+      labels = contact.instance_variable_get(:@labels_to_add)
+      contact.update_labels(labels) if labels
+    end
+
+    result
   end
 
   def update_data_import_status(processed_records, rejected_records)
