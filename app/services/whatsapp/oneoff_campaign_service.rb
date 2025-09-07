@@ -57,7 +57,7 @@ class Whatsapp::OneoffCampaignService
       return
     end
 
-    send_whatsapp_template_message(to: contact.phone_number)
+    send_whatsapp_template_message(to: contact.phone_number, template_params: process_liquid_in_template_params(contact))
   end
 
   def process_audience(audience_labels)
@@ -69,10 +69,28 @@ class Whatsapp::OneoffCampaignService
     Rails.logger.info "Campaign #{campaign.id} processing completed"
   end
 
-  def send_whatsapp_template_message(to:)
+  def process_liquid_in_template_params(contact)
+    liquid_service = Liquid::CampaignTemplateService.new(
+      campaign: campaign,
+      contact: contact
+    )
+    processed = campaign.template_params['processed_params'].transform_values do |params|
+      params.transform_values do |value|
+        if value.is_a?(String)
+          liquid_service.call(value)
+        else
+          value
+        end
+      end
+    end
+
+    campaign.template_params.merge('processed_params' => processed)
+  end
+
+  def send_whatsapp_template_message(to:, template_params:)
     processor = Whatsapp::TemplateProcessorService.new(
       channel: channel,
-      template_params: campaign.template_params
+      template_params: template_params
     )
 
     name, namespace, lang_code, processed_parameters = processor.call
