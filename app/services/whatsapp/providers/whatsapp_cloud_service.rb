@@ -89,6 +89,34 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     "#{api_base_path}/v13.0/#{media_id}"
   end
 
+  def create_message_template(template_params)
+    response = HTTParty.post(
+      "#{api_base_path}/v18.0/#{whatsapp_channel.provider_config['business_account_id']}/message_templates",
+      headers: api_headers,
+      body: template_params.to_json
+    )
+    parsed_response = response.parsed_response
+
+    return parsed_response if response.success? && parsed_response['error'].blank?
+
+    handle_template_error(response, parsed_response)
+  end
+
+  def delete_message_template(whatsapp_template_id, template_name)
+    params = { name: template_name, hsm_id: whatsapp_template_id }
+
+    response = HTTParty.delete(
+      "#{api_base_path}/v18.0/#{whatsapp_channel.provider_config['business_account_id']}/message_templates",
+      headers: api_headers,
+      query: params
+    )
+    parsed_response = response.parsed_response
+
+    return parsed_response if response.success? && parsed_response['error'].blank?
+
+    handle_template_error(response, parsed_response)
+  end
+
   private
 
   def csat_template_service
@@ -213,34 +241,6 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     )
 
     process_response(response, message)
-  end
-
-  def create_message_template(template_params)
-    response = HTTParty.post(
-      "#{api_base_path}/v18.0/#{whatsapp_channel.provider_config['business_account_id']}/message_templates",
-      headers: api_headers,
-      body: template_params.to_json
-    )
-    parsed_response = response.parsed_response
-
-    return parsed_response if response.success? && parsed_response['error'].blank?
-
-    handle_template_error(response, parsed_response)
-  end
-
-  def delete_message_template(whatsapp_template_id, template_name)
-    params = { name: template_name, hsm_id: whatsapp_template_id }
-
-    response = HTTParty.delete(
-      "#{api_base_path}/v18.0/#{whatsapp_channel.provider_config['business_account_id']}/message_templates",
-      headers: api_headers,
-      query: params
-    )
-    parsed_response = response.parsed_response
-
-    return parsed_response if response.success? && parsed_response['error'].blank?
-
-    handle_template_error(response, parsed_response)
   end
 
   def handle_template_error(response, parsed_response)
